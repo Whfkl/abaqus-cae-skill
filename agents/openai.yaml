@@ -2,5 +2,5 @@ interface:
   display_name: "Abaqus CAE"
   short_description: "Control and edit a live Abaqus/CAE session"
   icon_small: "./assets/icon.png"
-  icon_large: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"
   default_prompt: "Use $abaqus-cae-skill to inspect and update the active Abaqus/CAE model."
