@@ -24,6 +24,20 @@ def choose_port() -> int:
         return probe.getsockname()[1]
 
 
+def skill_files() -> dict[str, bytes]:
+    """Assemble a self-contained Skill from either source or an installed wheel."""
+    package = resources.files("abaqus_cae_skill")
+    local_root = Path(__file__).resolve().parents[2]
+    assets = ("SKILL.md", "agents/openai.yaml", "scripts/abaqus_cae.py", "LICENSE", "NOTICE.md")
+    from_source = all((local_root / name).is_file() for name in assets)
+    files = {name: (local_root / name).read_bytes() if from_source else
+             package.joinpath("skill", *name.split("/")).read_bytes() for name in assets}
+    for module in package.iterdir():
+        if module.is_file() and module.name.endswith(".py"):
+            files["scripts/abaqus_cae_skill/" + module.name] = module.read_bytes()
+    return files
+
+
 def install(root: Path, plugin_dir: str | None = None, plugin_name: str | None = None,
             port: int | None = None, skill_dir: str | None = None) -> dict[str, Any]:
     receipt_path = root / "installation.json"
@@ -54,17 +68,20 @@ def install(root: Path, plugin_dir: str | None = None, plugin_name: str | None =
     source = original.replace(marker, "_INSTALL_CONFIG = " + repr(settings))
     data = source.encode("utf-8")
     skill_target = Path(skill_dir).expanduser().resolve() / "abaqus-cae-skill" / "SKILL.md" if skill_dir else None
-    skill_bytes = None
+    bundled_files = None
     if skill_target:
-        packaged = resources.files("abaqus_cae_skill").joinpath("skill/SKILL.md")
-        local = Path(__file__).resolve().parent.parent / "skills/abaqus-cae-skill/SKILL.md"
-        skill_bytes = local.read_bytes() if local.is_file() else packaged.read_bytes()
+        bundled_files = skill_files()
         previous_skill = (previous or {}).get("skill") or {}
         if previous_skill.get("path") and str(skill_target) != previous_skill["path"]:
             raise ValueError("Skill already installed elsewhere; uninstall before changing its path")
-        if skill_target.exists() and skill_target.read_bytes() != skill_bytes:
-            if str(skill_target) != previous_skill.get("path") or digest(skill_target.read_bytes()) != previous_skill.get("sha256"):
-                raise FileExistsError(f"Refusing to overwrite a modified Skill: {skill_target}")
+        previous_files = previous_skill.get("files") or {}
+        if previous_skill.get("path") and previous_skill.get("sha256"):
+            previous_files = {previous_skill["path"]: previous_skill["sha256"], **previous_files}
+        for name, content in bundled_files.items():
+            destination = skill_target.parent / name
+            if destination.exists() and destination.read_bytes() != content:
+                if digest(destination.read_bytes()) != previous_files.get(str(destination)):
+                    raise FileExistsError(f"Refusing to overwrite a modified Skill file: {destination}")
     directory.mkdir(parents=True, exist_ok=True)
     if target.exists():
         # The receipt hash was checked above; this is an update of our own file.
@@ -76,10 +93,16 @@ def install(root: Path, plugin_dir: str | None = None, plugin_name: str | None =
         with target.open("xb") as handle:
             handle.write(data)
     receipt = {**settings, "pluginSha256": digest(data)}
-    if skill_target and skill_bytes is not None:
-        skill_target.parent.mkdir(parents=True, exist_ok=True)
-        skill_target.write_bytes(skill_bytes)
-        receipt["skill"] = {"path": str(skill_target), "sha256": digest(skill_bytes)}
+    if skill_target and bundled_files is not None:
+        owned_files = {}
+        for name, content in bundled_files.items():
+            destination = skill_target.parent / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.exists() or destination.read_bytes() != content:
+                destination.write_bytes(content)
+            owned_files[str(destination)] = digest(content)
+        receipt["skill"] = {"path": str(skill_target), "sha256": digest(bundled_files["SKILL.md"]),
+                            "files": owned_files}
     elif previous and previous.get("skill"):
         receipt["skill"] = previous["skill"]
     write_json(receipt_path, receipt)
@@ -94,7 +117,11 @@ def uninstall(root: Path) -> dict[str, Any]:
     receipt = read_json(receipt_path)
     owned = [(Path(receipt["pluginPath"]), receipt["pluginSha256"])]
     if receipt.get("skill"):
-        owned.append((Path(receipt["skill"]["path"]), receipt["skill"]["sha256"]))
+        skill = receipt["skill"]
+        if skill.get("files"):
+            owned.extend((Path(path), expected) for path, expected in skill["files"].items())
+        else:
+            owned.append((Path(skill["path"]), skill["sha256"]))
     for path, expected in owned:
         if path.exists() and digest(path.read_bytes()) != expected:
             raise ValueError(f"Refusing to remove a modified file: {path}")

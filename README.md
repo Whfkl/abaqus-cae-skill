@@ -10,11 +10,38 @@ see [NOTICE.md](NOTICE.md) and [LICENSE](LICENSE).
 
 ## Install
 
-Requires external Python 3.10+ and Abaqus/CAE 2024+ (the plugin uses CAE's Python 3).
+Requires Python 3.10+ and Abaqus/CAE 2024+ (the plugin uses CAE's Python 3).
+This repository is a complete Codex Skill directory following the
+[official OpenAI skill layout](https://learn.chatgpt.com/docs/build-skills):
+
+```text
+abaqus-cae-skill/
+├── SKILL.md
+├── agents/openai.yaml
+├── scripts/
+│   ├── abaqus_cae.py
+│   └── abaqus_cae_skill/
+├── pyproject.toml
+└── README.md
+```
+
+The bundled CLI runs directly, without installing a Python package:
+
+```powershell
+python scripts/abaqus_cae.py install --skill-dir "$env:USERPROFILE\.agents\skills"
+```
+
+This installs the CAE plugin and the complete self-contained Skill, including
+`agents/openai.yaml` and its executable scripts. Codex can also use a copy of this
+repository in a user or repository `.agents/skills/abaqus-cae-skill` directory.
+The Skill remains usable after the source checkout is removed; invoke
+`python <installed-skill>/scripts/abaqus_cae.py <command>`.
+
+For a globally available `abaqus-cae` command, optionally install the CLI:
 
 ```powershell
 uv tool install .
-abaqus-cae install --skill-dir "$env:USERPROFILE\.codex\skills"
+abaqus-cae install --skill-dir "$env:USERPROFILE\.agents\skills"
 ```
 
 Choose the actual agent's skills directory; the Codex path above is an example.
@@ -37,8 +64,8 @@ abaqus-cae capture-viewport --out "D:\project\viewport.png"
 
 With multiple CAE sessions: `abaqus-cae --session ID run-python --code "..."`.
 Global connection options go before the command. Commands emit JSON; `--help`
-lists all six operations and management commands. The Skill is a single file:
-[SKILL.md](skills/abaqus-cae-skill/SKILL.md).
+lists all six operations and management commands. Instructions remain in one
+file: [SKILL.md](SKILL.md); UI metadata is in [agents/openai.yaml](agents/openai.yaml).
 
 Configuration defaults to `%LOCALAPPDATA%\abaqus-cae-skill` on Windows or
 `~/.config/abaqus-cae-skill` elsewhere. Override with `ABAQUS_CAE_CONFIG_DIR` or
@@ -66,13 +93,15 @@ criteria. Those belong to the user's task.
 
 ```powershell
 uv sync
-uv run python -m unittest discover -s tests -v
 uv run abaqus-cae --help
 uv build
 ```
 
-Tests exercise installation ownership, the socket protocol and queued GUI dispatch
-with a simulated CAE kernel. Real CAE validation is reported separately in
+Local `test/` and `tests/` directories are intentionally ignored by Git and
+excluded from distribution. When present locally, run them with
+`uv run python -m unittest discover -s tests -v`. They exercise installation
+ownership, the socket protocol and queued GUI dispatch with a simulated CAE
+kernel. Real CAE validation is reported separately in
 [VALIDATION.md](VALIDATION.md); simulated tests do not establish Abaqus API or
 solver correctness. Automatic startup depends on normal plugin discovery; CAE
 launch modes that suppress plugins are unsupported.

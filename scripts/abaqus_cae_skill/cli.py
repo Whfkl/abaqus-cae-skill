@@ -33,7 +33,7 @@ def parser() -> argparse.ArgumentParser:
     setup.add_argument("--plugin-dir")
     setup.add_argument("--plugin-name")
     setup.add_argument("--port", dest="install_port", type=int, help="Preferred port; 0 selects at CAE startup")
-    setup.add_argument("--skill-dir", help="Agent skills parent directory; optionally install SKILL.md too")
+    setup.add_argument("--skill-dir", help="Agent skills parent directory; install the complete Codex Skill too")
     sub.add_parser("uninstall", help="Remove only unchanged files owned by this installation")
     sub.add_parser("doctor", help="Show package, plugin and configuration details")
     sub.add_parser("sessions", help="Discover live CAE bridges and identify stale records")

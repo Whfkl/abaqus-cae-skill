@@ -9,6 +9,11 @@
 - A fresh virtual environment installed the wheel without dependencies, then
   installed, diagnosed and uninstalled the plugin and Skill from outside the
   source directory. This verifies the packaged resources and CLI entrypoint.
+- After the Codex layout update, root SKILL.md and agents/openai.yaml validate.
+  An installed Skill's bundled script ran with system Python outside the source
+  checkout, installed a plugin and uninstalled it successfully. All owned Skill
+  scripts/metadata are tracked in the installation receipt. Test directories
+  are excluded from both Git and the built distributions.
 - Coverage includes non-overwriting installation, owned-file updates/uninstall,
   Skill-file preservation, deferred automatic startup and GUI-thread dispatch,
   persistent variables, cleared `result`, code/file/stdin input, Chinese filenames,
@@ -45,7 +50,8 @@ an environment limitation, not a passed solver check.
 
 Local evidence and model/INP/ODB/image artifacts are under
 `.verification/cae/live-normal/`; they are ignored by Git. The reproducible
-integration runner is `tests/live_smoke.py`. Start a dedicated empty CAE session,
+integration runner is the local, Git-ignored `tests/live_smoke.py` (not included
+in a fresh clone or distribution). Start a dedicated empty CAE session,
 then supply its exact ID:
 
 ```powershell

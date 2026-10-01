@@ -11,9 +11,11 @@ Choose modelling and analysis methods from the user's request.
 
 ## Installation
 
-Install this repository with `uv tool install <repository-path>` (or `uv sync`
-and prefix commands with `uv run` when working from source). Use
-`abaqus-cae --help` and `<command> --help` for arguments.
+This Skill bundles its CLI. Run `python <skill-directory>/scripts/abaqus_cae.py`
+with Python 3.10+; no package installation is required. In the commands below,
+replace `abaqus-cae` with that invocation. Alternatively install the CLI with
+`uv tool install <repository-path>` or use `uv run abaqus-cae` after `uv sync`.
+Use `--help` and `<command> --help` for arguments.
 
 Run `abaqus-cae install --plugin-dir <CAE-plugin-directory>
 --plugin-name <unique_name_plugin.py> --port <chosen-port>`.
@@ -21,7 +23,9 @@ Choose the directory, Python module filename and port for this machine; inspect
 existing files first. Omit name/port for collision-resistant defaults, or use
 `--port 0` for an OS-selected port at startup. Installation never overwrites an
 unrelated or modified plugin. Add `--skill-dir <agent-skills-parent>` to install
-this Skill too. The default plugin directory is `~/abaqus_plugins`.
+the complete Skill too, including its metadata and executable scripts. Codex's
+user skill directory is `~/.agents/skills`; choose the actual target directory.
+The default plugin directory is `~/abaqus_plugins`.
 
 The plugin auto-starts when CAE starts normally. An already running CAE needs a
 restart to load it; preserve the user's unsaved work. No Start menu click or
