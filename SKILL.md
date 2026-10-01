@@ -56,7 +56,7 @@ Global options go **before** the command: `--config-dir`, `--session`, `--port`,
 | `set-workdir <absolute-path>` | Change the CAE working directory to an existing directory. |
 | `monitor-job-status [--job-name NAME] [--since UNIX_SECONDS] [--terminate]` | List jobs or inspect one job's state/log evidence; optionally request its termination. |
 | `inspect-odb PATH [--step NAME] [--frame -1] [--variable U] [--component U2] [--set-name SET]` | Read ODB metadata or a field summary. Also supports history-region, history-variable and max-points. |
-| `capture-viewport --out PATH [--viewport-name NAME] [--format PNG]` | Save PNG/TIFF/SVG/EPS/PS; parent directory must exist, extension must match format. Read the returned `savedPath` with the agent's image capability. |
+| `capture-viewport --out PATH [--viewport-name NAME] [--format PNG]` | Save PNG/TIFF/SVG/EPS/PS; parent directory must exist, extension must match format (TIFF accepts `.tif` or `.tiff`). Read the returned `savedPath` with the agent's image capability. |
 
 The three Python inputs are mutually exclusive and share a persistent execution
 namespace; all use the current CAE model database. Expressions return their value;

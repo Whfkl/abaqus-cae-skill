@@ -278,23 +278,27 @@ else:
     viewport_name = session.currentViewportName
 if image_format not in formats:
     raise ValueError('Unsupported image format: %s' % image_format)
+extensions = ('tif', 'tiff') if image_format == 'TIFF' else (image_format.lower(),)
 if image_format in ('SVG', 'EPS', 'PS') and not save_path:
     raise ValueError('SVG/EPS/PS requires save_path')
 if save_path:
     save_path = os.path.abspath(save_path)
     if not os.path.isdir(os.path.dirname(save_path)):
         raise FileNotFoundError(os.path.dirname(save_path))
-    if not save_path.lower().endswith('.' + image_format.lower()):
+    if not any(save_path.lower().endswith('.' + extension) for extension in extensions):
         raise ValueError('save_path extension must match image_format')
 fd, base = tempfile.mkstemp(prefix='abaqus_mcp_capture_')
 os.close(fd)
 os.unlink(base)
 source = None
 destination_temp = None
+candidates = [base + '.' + extension for extension in extensions]
+candidates += [base + '.' + extension.upper() for extension in extensions]
+candidates.append(base)
 try:
     session.printToFile(fileName=base, format=formats[image_format],
                         canvasObjects=(session.viewports[viewport_name],))
-    for candidate in (base + '.' + image_format.lower(), base + '.' + image_format.upper(), base):
+    for candidate in candidates:
         if os.path.isfile(candidate) and os.path.getsize(candidate):
             source = candidate
             break
@@ -315,7 +319,7 @@ try:
               'savedPath': save_path, 'sizeBytes': len(raw),
               'width': width, 'height': height}
 finally:
-    for candidate in (destination_temp, source, base, base + '.' + image_format.lower(), base + '.' + image_format.upper()):
+    for candidate in [destination_temp, source] + candidates:
         if candidate and os.path.isfile(candidate):
             try:
                 os.unlink(candidate)
