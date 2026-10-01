@@ -67,6 +67,11 @@ Global connection options go before the command. Commands emit JSON; `--help`
 lists all six operations and management commands. Instructions remain in one
 file: [SKILL.md](SKILL.md); UI metadata is in [agents/openai.yaml](agents/openai.yaml).
 
+`SKILL.md` and the bundled Python CLI are reusable by other agents that load
+Agent Skills and can run local commands. `agents/openai.yaml` supplies OpenAI
+UI metadata; it does not implement other agents or their installation/discovery
+rules. Use the target agent's supported skill directory and loading mechanism.
+
 Configuration defaults to `%LOCALAPPDATA%\abaqus-cae-skill` on Windows or
 `~/.config/abaqus-cae-skill` elsewhere. Override with `ABAQUS_CAE_CONFIG_DIR` or
 `--config-dir`. Receipts record ownership; session manifests record actual ports
@@ -101,7 +106,5 @@ Local `test/` and `tests/` directories are intentionally ignored by Git and
 excluded from distribution. When present locally, run them with
 `uv run python -m unittest discover -s tests -v`. They exercise installation
 ownership, the socket protocol and queued GUI dispatch with a simulated CAE
-kernel. Real CAE validation is reported separately in
-[VALIDATION.md](VALIDATION.md); simulated tests do not establish Abaqus API or
-solver correctness. Automatic startup depends on normal plugin discovery; CAE
-launch modes that suppress plugins are unsupported.
+kernel. Automatic startup depends on normal plugin discovery; CAE launch modes
+that suppress plugins are unsupported.
