@@ -1,0 +1,24 @@
+[project]
+name = "abaqus-cae-skill"
+version = "0.1.0"
+description = "A thin Agent Skill and dependency-free CLI for the active Abaqus/CAE session."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = []
+
+[project.scripts]
+abaqus-cae = "abaqus_cae_skill.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["abaqus_cae_skill"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills/abaqus-cae-skill/SKILL.md" = "abaqus_cae_skill/skill/SKILL.md"
+
+[tool.uv]
+package = true
