@@ -7,6 +7,11 @@ requires-python = ">=3.10"
 license = "MIT"
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/Whfkl/abaqus-cae-skill"
+Source = "https://github.com/Whfkl/abaqus-cae-skill"
+Issues = "https://github.com/Whfkl/abaqus-cae-skill/issues"
+
 [project.scripts]
 abaqus-cae = "abaqus_cae_skill.cli:main"
 

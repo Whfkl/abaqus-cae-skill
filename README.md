@@ -11,6 +11,13 @@ see [NOTICE.md](NOTICE.md) and [LICENSE](LICENSE).
 ## Install
 
 Requires Python 3.10+ and Abaqus/CAE 2024+ (the plugin uses CAE's Python 3).
+Get the project:
+
+```powershell
+git clone https://github.com/Whfkl/abaqus-cae-skill.git
+cd abaqus-cae-skill
+```
+
 This repository is a complete Codex Skill directory following the
 [official OpenAI skill layout](https://learn.chatgpt.com/docs/build-skills):
 
