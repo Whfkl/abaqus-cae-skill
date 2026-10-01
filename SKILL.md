@@ -17,7 +17,8 @@ replace `abaqus-cae` with that invocation. Alternatively install the CLI with
 either `uv tool install <repository-path>` or standard venv and pip:
 `python -m venv <env>` then `<env-python> -m pip install <repository-path>`.
 Use `<env>/Scripts/abaqus-cae.exe` on Windows or `<env>/bin/abaqus-cae` on Unix.
-For uv development, `uv sync` makes `uv run abaqus-cae` available.
+For development, use `uv sync` and `uv run abaqus-cae`, or install into a venv
+with `<env-python> -m pip install -e <repository-path>`.
 Use `--help` and `<command> --help` for arguments.
 
 Run `abaqus-cae install --plugin-dir <CAE-plugin-directory>

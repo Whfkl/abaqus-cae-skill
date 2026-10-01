@@ -44,7 +44,7 @@ repository in a user or repository `.agents/skills/abaqus-cae-skill` directory.
 The Skill remains usable after the source checkout is removed; invoke
 `python <installed-skill>/scripts/abaqus_cae.py <command>`.
 
-For a globally available `abaqus-cae` command, optionally install the CLI:
+To install the `abaqus-cae` command, choose either option:
 
 With **uv**:
 
