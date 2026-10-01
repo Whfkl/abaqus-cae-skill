@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <title>Abaqus CAE Skill</title>
+  <desc>A cyan finite-element mesh cube and a white pointer on a navy tile.</desc>
+  <rect width="512" height="512" rx="108" fill="#132238"/>
+  <path d="M244 76 96 162 244 248 392 162Z" fill="#1B4D68"/>
+  <path d="M96 162V330L244 416V248Z" fill="#153A54"/>
+  <path d="M244 248V416L392 330V162Z" fill="#102D45"/>
+  <g stroke="#5CD7EF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M244 76 96 162V330L244 416 392 330V162Z"/>
+    <path d="M96 162 244 248 392 162M244 248V416"/>
+  </g>
+  <g stroke="#5CD7EF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".8">
+    <path d="M170 119 318 205M318 119 170 205"/>
+    <path d="M96 246 244 332M170 205V373"/>
+    <path d="M244 332 392 246M318 205V373"/>
+  </g>
+  <g fill="#A7ECF8">
+    <circle cx="244" cy="76" r="10"/>
+    <circle cx="96" cy="162" r="10"/>
+    <circle cx="392" cy="162" r="10"/>
+    <circle cx="96" cy="330" r="10"/>
+    <circle cx="244" cy="416" r="10"/>
+    <circle cx="392" cy="330" r="10"/>
+  </g>
+  <circle cx="244" cy="248" r="17" fill="#FDB56B" stroke="#132238" stroke-width="7"/>
+  <path d="M319 282 326 427 359 399 385 447 411 432 385 386 427 379Z"
+        fill="#F5FAFC" stroke="#132238" stroke-width="13" stroke-linejoin="round"/>
+</svg>

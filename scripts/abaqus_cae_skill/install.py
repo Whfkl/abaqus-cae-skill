@@ -28,7 +28,8 @@ def skill_files() -> dict[str, bytes]:
     """Assemble a self-contained Skill from either source or an installed wheel."""
     package = resources.files("abaqus_cae_skill")
     local_root = Path(__file__).resolve().parents[2]
-    assets = ("SKILL.md", "agents/openai.yaml", "scripts/abaqus_cae.py", "LICENSE", "NOTICE.md")
+    assets = ("SKILL.md", "agents/openai.yaml", "scripts/abaqus_cae.py", "LICENSE", "NOTICE.md",
+              "assets/icon.png", "assets/icon.svg")
     from_source = all((local_root / name).is_file() for name in assets)
     files = {name: (local_root / name).read_bytes() if from_source else
              package.joinpath("skill", *name.split("/")).read_bytes() for name in assets}

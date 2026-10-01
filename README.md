@@ -1,5 +1,7 @@
 # abaqus-cae-skill
 
+<img src="assets/icon.svg" width="80" height="80" alt="Abaqus CAE Skill icon">
+
 A thin Agent Skill and a dependency-free Python CLI for the **currently running
 Abaqus/CAE session**. Run inline code, script files or stdin; make small edits to
 an existing model; inspect jobs/ODB data; save viewport images.
@@ -29,6 +31,9 @@ This repository is a complete Codex Skill directory following the
 abaqus-cae-skill/
 ├── SKILL.md
 ├── agents/openai.yaml
+├── assets/
+│   ├── icon.png
+│   └── icon.svg
 ├── scripts/
 │   ├── abaqus_cae.py
 │   └── abaqus_cae_skill/
