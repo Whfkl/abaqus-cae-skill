@@ -14,7 +14,10 @@ Choose modelling and analysis methods from the user's request.
 This Skill bundles its CLI. Run `python <skill-directory>/scripts/abaqus_cae.py`
 with Python 3.10+; no package installation is required. In the commands below,
 replace `abaqus-cae` with that invocation. Alternatively install the CLI with
-`uv tool install <repository-path>` or use `uv run abaqus-cae` after `uv sync`.
+either `uv tool install <repository-path>` or standard venv and pip:
+`python -m venv <env>` then `<env-python> -m pip install <repository-path>`.
+Use `<env>/Scripts/abaqus-cae.exe` on Windows or `<env>/bin/abaqus-cae` on Unix.
+For uv development, `uv sync` makes `uv run abaqus-cae` available.
 Use `--help` and `<command> --help` for arguments.
 
 Run `abaqus-cae install --plugin-dir <CAE-plugin-directory>

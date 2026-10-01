@@ -46,10 +46,24 @@ The Skill remains usable after the source checkout is removed; invoke
 
 For a globally available `abaqus-cae` command, optionally install the CLI:
 
+With **uv**:
+
 ```powershell
 uv tool install .
 abaqus-cae install --skill-dir "$env:USERPROFILE\.agents\skills"
 ```
+
+Or with standard **venv + pip** (no uv required):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\abaqus-cae.exe install --skill-dir "$env:USERPROFILE\.agents\skills"
+```
+
+The venv commands use its executable paths directly; activation is optional.
+On Linux/macOS, the corresponding paths are `.venv/bin/python` and
+`.venv/bin/abaqus-cae`.
 
 Choose the actual agent's skills directory; the Codex path above is an example.
 `--plugin-dir`, `--plugin-name` and `--port` allow an agent to choose installation
@@ -103,15 +117,28 @@ criteria. Those belong to the user's task.
 
 ## Develop and validate
 
+With **uv**:
+
 ```powershell
 uv sync
 uv run abaqus-cae --help
 uv build
 ```
 
+With standard **venv + pip**:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\abaqus-cae.exe --help
+.\.venv\Scripts\python.exe -m pip install build
+.\.venv\Scripts\python.exe -m build
+```
+
 Local `test/` and `tests/` directories are intentionally ignored by Git and
 excluded from distribution. When present locally, run them with
-`uv run python -m unittest discover -s tests -v`. They exercise installation
+`uv run python -m unittest discover -s tests -v` or
+`.\.venv\Scripts\python.exe -m unittest discover -s tests -v`. They exercise installation
 ownership, the socket protocol and queued GUI dispatch with a simulated CAE
 kernel. Automatic startup depends on normal plugin discovery; CAE launch modes
 that suppress plugins are unsupported.
