@@ -10,6 +10,7 @@ from abaqusGui import (
     FXMAPFUNC,
     SEL_COMMAND,
     SEL_TIMEOUT,
+    addExitCallback,
     getAFXApp,
     sendCommand,
     showAFXErrorDialog,
@@ -71,33 +72,6 @@ def _announce(message):
             main_window.writeToMessageArea(message)
     except Exception:
         pass
-
-
-def _send(sock, payload):
-    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    sock.sendall(data + b"\n")
-
-
-def _recv(sock):
-    chunks = []
-    total = 0
-    max_bytes = 16 * 1024 * 1024
-    while True:
-        chunk = sock.recv(4096)
-        if not chunk:
-            raise RuntimeError("socket closed before a complete message was received")
-        newline = chunk.find(b"\n")
-        if newline >= 0:
-            total += newline
-            if total > max_bytes:
-                raise RuntimeError("request exceeded %d bytes" % max_bytes)
-            chunks.append(chunk[:newline])
-            break
-        chunks.append(chunk)
-        total += len(chunk)
-        if total > max_bytes:
-            raise RuntimeError("request exceeded %d bytes" % max_bytes)
-    return json.loads(b"".join(chunks).decode("utf-8"))
 
 
 def _kernel_wrapper(code, response_path, execution_id="", source_filename=""):
@@ -812,6 +786,10 @@ def _run_kernel_code(code, timeout, execution_id="", source_filename=""):
 
     deadline = time.time() + timeout
     while time.time() < deadline:
+        # Keep discovery and request buffering responsive while the kernel works;
+        # queued model commands are still executed serially by the dispatcher.
+        if _SERVER is not None:
+            _SERVER.poll_requests()
         if os.path.exists(response_path):
             with open(response_path, "r") as handle:
                 payload = json.load(handle)
@@ -837,69 +815,139 @@ class SessionMismatchError(RuntimeError):
     pass
 
 
-class McpGuiHandler(socketserver.BaseRequestHandler):
-    def handle(self):
-        request_id = None
+class McpGuiHandler:
+    """One nonblocking connection, advanced only by the GUI event loop."""
+
+    def __init__(self, request):
+        self.request = request
+        self.request.setblocking(False)
+        self.input = bytearray()
+        self.output = b''
+        self.received = False
+        self.request_id = None
+        self.item = None
+        self.deadline = time.monotonic() + 5.0
+
+    def reply(self, payload):
+        self.received = True
+        self.item = None
+        self.output = json.dumps(payload, ensure_ascii=False,
+                                 separators=(',', ':')).encode('utf-8') + b'\n'
+        self.deadline = time.monotonic() + 5.0
+
+    def error(self, exc):
+        self.reply({'id': self.request_id, 'ok': False, 'error': {
+            'message': str(exc), 'type': '%s.%s' % (type(exc).__module__, type(exc).__name__),
+            'traceback': traceback.format_exc(),
+            'state': 'NOT_STARTED' if isinstance(exc, SessionMismatchError) else (
+                'CANCELLED' if 'request cancelled' in str(exc) else 'UNKNOWN'),
+        }})
+
+    def dispatch(self, message):
+        self.request_id = message.get('id')
+        method = message.get('method')
+        params = message.get('params') or {}
+        if params.get('sessionId') and params['sessionId'] != SESSION_ID:
+            raise SessionMismatchError('Target CAE session has changed; execution not started')
+        if method == 'describe':
+            self.reply({'id': self.request_id, 'ok': True, 'result': dict(_SESSION_INFO)})
+            return
+        if _EXITING or _SERVER is None:
+            raise SessionMismatchError('CAE bridge is closing; execution not started')
+        self.deadline = time.monotonic() + float(params.get('timeout') or 60) + 5.0
+        self.item = GuiRequest(method, params, deadline=self.deadline)
+        _REQUESTS.put(self.item)
+
+    def poll(self):
         try:
-            message = _recv(self.request)
-            request_id = message.get("id")
-            method = message.get("method")
-            params = message.get("params") or {}
-            _log("request method=%s id=%s" % (method, request_id))
-            if params.get('sessionId') and params['sessionId'] != SESSION_ID:
-                raise SessionMismatchError('Target CAE session has changed; execution not started')
-            if method == 'describe':
-                _send(self.request, {'id': request_id, 'ok': True, 'result': dict(_SESSION_INFO)})
-                return
-
-            if _DISPATCHER is None:
-                raise RuntimeError("GUI dispatcher is not initialized")
-
-            wait_timeout = float(params.get("timeout") or os.environ.get("ABAQUS_CAE_TIMEOUT", "60")) + 5.0
-            item = GuiRequest(method, params)
-            _REQUESTS.put(item)
-            _log("queued method=%s id=%s" % (method, request_id))
-
-            if not item.event.wait(wait_timeout):
-                if item.cancel_if_queued():
-                    raise TimeoutError("timed out before GUI execution; request cancelled")
-                raise TimeoutError("timed out while GUI execution was running; outcome unknown")
-            if item.error is not None:
-                raise item.error
-            result = item.result
-
-            _send(self.request, {"id": request_id, "ok": True, "result": result})
-            _log("response ok id=%s" % request_id)
+            if not self.received:
+                if time.monotonic() >= self.deadline:
+                    return False
+                # Bound per-poll reads; incomplete messages must not freeze CAE.
+                for _ in range(16):
+                    try:
+                        chunk = self.request.recv(4096)
+                    except BlockingIOError:
+                        break
+                    if not chunk:
+                        return False
+                    self.input.extend(chunk)
+                    if len(self.input) > 16 * 1024 * 1024:
+                        raise ValueError('request exceeded 16777216 bytes')
+                    newline = self.input.find(b'\n')
+                    if newline >= 0:
+                        self.received = True
+                        self.dispatch(json.loads(self.input[:newline].decode('utf-8')))
+                        break
+            if self.item is not None:
+                if self.item.event.is_set():
+                    if self.item.error is not None:
+                        raise self.item.error
+                    self.reply({'id': self.request_id, 'ok': True, 'result': self.item.result})
+                elif time.monotonic() >= self.deadline:
+                    if self.item.cancel_if_queued():
+                        raise TimeoutError('timed out before GUI execution; request cancelled')
+                    raise TimeoutError('timed out while GUI execution was running; outcome unknown')
+            if self.output:
+                try:
+                    sent = self.request.send(self.output)
+                    if not sent:
+                        return False
+                    self.output = self.output[sent:]
+                    return bool(self.output)
+                except BlockingIOError:
+                    pass
+            return time.monotonic() < self.deadline
+        except OSError:
+            return False
         except Exception as exc:
-            _log("response error id=%s type=%s" % (request_id, type(exc).__name__))
-            _send(
-                self.request,
-                {
-                    "id": request_id,
-                    "ok": False,
-                    "error": {
-                        "message": str(exc),
-                        "type": "%s.%s" % (type(exc).__module__, type(exc).__name__),
-                        "traceback": traceback.format_exc(),
-                        "state": "NOT_STARTED" if isinstance(exc, SessionMismatchError) else ("CANCELLED" if "request cancelled" in str(exc) else "UNKNOWN"),
-                    },
-                },
-            )
+            self.error(exc)
+            return True
+
+    def close(self):
+        if self.item is not None and self.item.cancel_if_queued():
+            self.item.error = RuntimeError('connection closed before GUI execution; request cancelled')
+            self.item.event.set()
+        self.request.close()
 
 
-class McpGuiServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class McpGuiServer(socketserver.TCPServer):
     allow_reuse_address = False
-    daemon_threads = True
+
+    def __init__(self, *args, **kwargs):
+        socketserver.TCPServer.__init__(self, *args, **kwargs)
+        self.socket.setblocking(False)
+        self.connections = []
+
+    def poll_requests(self):
+        for _ in range(16):
+            try:
+                request, address = self.socket.accept()
+            except BlockingIOError:
+                break
+            self.connections.append(self.RequestHandlerClass(request))
+        for connection in self.connections[:]:
+            if not connection.poll():
+                connection.close()
+                self.connections.remove(connection)
+
+    def request_stop(self):
+        # No Python worker threads survive into CAE's embedded interpreter exit.
+        for connection in self.connections:
+            connection.close()
+        self.connections[:] = []
+        socketserver.TCPServer.server_close(self)
 
 
 _SERVER = None
 _DISPATCHER = None
 _REQUESTS = queue.Queue()
 _SESSION_INFO = {}
+_EXITING = False
 
 
 class GuiRequest:
-    def __init__(self, method, params):
+    def __init__(self, method, params, deadline=None):
         self.method = method
         self.params = params
         self.event = threading.Event()
@@ -907,6 +955,7 @@ class GuiRequest:
         self.state = "queued"
         self.result = None
         self.error = None
+        self.deadline = deadline
 
     def cancel_if_queued(self):
         with self.lock:
@@ -918,6 +967,11 @@ class GuiRequest:
     def start_if_queued(self):
         with self.lock:
             if self.state != "queued":
+                return False
+            if self.deadline is not None and time.monotonic() >= self.deadline:
+                self.state = 'cancelled'
+                self.error = TimeoutError('timed out before GUI execution; request cancelled')
+                self.event.set()
                 return False
             self.state = "running"
             return True
@@ -974,7 +1028,7 @@ def _publish_session():
 
 def start_gui_agent():
     global _SERVER, PORT
-    if _SERVER is not None:
+    if _EXITING or _SERVER is not None:
         return
     try:
         _SERVER = McpGuiServer((HOST, PORT), McpGuiHandler)
@@ -988,23 +1042,36 @@ def start_gui_agent():
         'host': HOST, 'port': PORT, 'guiPid': os.getpid(),
         'pluginPath': _INSTALL_CONFIG['pluginPath'], 'version': _INSTALL_CONFIG['version'],
         'startedAt': time.time()})
-    thread = threading.Thread(target=_SERVER.serve_forever, name='AbaqusCaeBridge')
-    thread.daemon = True
-    thread.start()
     _publish_session()
     _announce('Abaqus CAE bridge ready: %s:%s (session %s)' % (HOST, PORT, SESSION_ID[:8]))
 
 
-def stop_gui_agent():
+def stop_gui_agent(cancel_pending=True):
     global _SERVER
-    if _SERVER is not None:
-        _SERVER.shutdown()
-        _SERVER.server_close()
-        _SERVER = None
+    server, _SERVER = _SERVER, None
+    if server is not None:
+        server.request_stop()
+    if cancel_pending:
+        while True:
+            try:
+                item = _REQUESTS.get_nowait()
+            except queue.Empty:
+                break
+            if item.cancel_if_queued():
+                item.error = RuntimeError('bridge stopped before GUI execution; request cancelled')
+                item.event.set()
     try:
         os.remove(SESSION_PATH)
     except OSError:
         pass
+
+
+def _on_cae_exit():
+    global _EXITING
+    _EXITING = True
+    if _DISPATCHER is not None:
+        _DISPATCHER.cancel_timers()
+    stop_gui_agent()
 
 
 class CaeBridgeDispatcher(AFXForm):
@@ -1016,6 +1083,8 @@ class CaeBridgeDispatcher(AFXForm):
         self.poll_pending = False
         self.boot_attempts = 0
         self.last_publish = 0
+        self.boot_timer = None
+        self.poll_timer = None
         FXMAPFUNC(self, SEL_TIMEOUT, self.ID_BOOT, CaeBridgeDispatcher.onBoot)
         FXMAPFUNC(self, SEL_TIMEOUT, self.ID_POLL, CaeBridgeDispatcher.onPoll)
         FXMAPFUNC(self, SEL_COMMAND, AFXMode.ID_ACTIVATE, CaeBridgeDispatcher.onActivate)
@@ -1028,6 +1097,9 @@ class CaeBridgeDispatcher(AFXForm):
         return self.onBoot(sender, sel, ptr)
 
     def onBoot(self, sender, sel, ptr):
+        self.boot_timer = None
+        if _EXITING:
+            return 1
         self.boot_attempts += 1
         try:
             start_gui_agent()
@@ -1035,18 +1107,29 @@ class CaeBridgeDispatcher(AFXForm):
         except Exception as exc:
             _log('Automatic bridge startup failed: %s' % exc)
             if self.boot_attempts < 5:
-                getAFXApp().addTimeout(500, self, self.ID_BOOT)
+                self.boot_timer = getAFXApp().addTimeout(500, self, self.ID_BOOT)
             else:
                 _announce('Abaqus CAE bridge could not start: %s' % exc)
         return 1
 
     def schedule_poll(self):
-        if not self.poll_pending and _SERVER is not None:
+        if not _EXITING and not self.poll_pending and _SERVER is not None:
             self.poll_pending = True
-            getAFXApp().addTimeout(100, self, self.ID_POLL)
+            self.poll_timer = getAFXApp().addTimeout(100, self, self.ID_POLL)
+
+    def cancel_timers(self):
+        for timer in (self.boot_timer, self.poll_timer):
+            if timer is not None:
+                getAFXApp().removeTimeout(timer)
+        self.boot_timer = self.poll_timer = None
+        self.poll_pending = False
 
     def onPoll(self, sender, sel, ptr):
         self.poll_pending = False
+        self.poll_timer = None
+        if _EXITING or _SERVER is None:
+            return 1
+        _SERVER.poll_requests()
         for _ in range(5):
             try:
                 item = _REQUESTS.get_nowait()
@@ -1062,6 +1145,8 @@ class CaeBridgeDispatcher(AFXForm):
                 with item.lock:
                     item.state = 'done'
                 item.event.set()
+        if _SERVER is not None:
+            _SERVER.poll_requests()
         if _SERVER is not None and time.time() - self.last_publish >= 10:
             try:
                 _publish_session()
@@ -1080,7 +1165,8 @@ toolset.registerGuiMenuButton(object=_DISPATCHER, buttonText='Abaqus CAE Skill|R
     version=_INSTALL_CONFIG['version'], applicableModules=['Part', 'Property', 'Assembly', 'Step',
         'Interaction', 'Load', 'Mesh', 'Job', 'Visualization', 'Sketch'],
     description='Restart the bridge if its automatic startup failed.')
-getAFXApp().addTimeout(250, _DISPATCHER, _DISPATCHER.ID_BOOT)
+_DISPATCHER.boot_timer = getAFXApp().addTimeout(250, _DISPATCHER, _DISPATCHER.ID_BOOT)
+addExitCallback(_on_cae_exit)
 
-import atexit
-atexit.register(stop_gui_agent)
+# CAE owns its embedded Python shutdown. Python atexit callbacks run too late
+# here and can hang or crash the GUI; use only the Abaqus exit callback above.

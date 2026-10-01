@@ -34,6 +34,7 @@ The default plugin directory is `~/abaqus_plugins`.
 The plugin auto-starts when CAE starts normally. An already running CAE needs a
 restart to load it; preserve the user's unsaved work. No Start menu click or
 environment-file edit is required. `doctor` shows the recorded installation.
+The bridge uses the GUI event loop without background Python network threads.
 `uninstall` removes only unchanged files belonging to it.
 
 ## Connection

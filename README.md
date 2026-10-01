@@ -8,6 +8,10 @@ The standalone GUI plugin starts with CAE. No MCP server is needed. The executio
 bridge and diagnostics derive from [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP);
 see [NOTICE.md](NOTICE.md) and [LICENSE](LICENSE).
 
+The bridge handles nonblocking sockets in CAE's GUI event loop, without Python
+network worker threads. Cleanup uses CAE's exit callback rather than Python
+`atexit`, so it does not wait for threads during embedded-interpreter shutdown.
+
 ## Install
 
 Requires Python 3.10+ and Abaqus/CAE 2024+ (the plugin uses CAE's Python 3).
